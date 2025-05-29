@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Attendance History - ChronoLog</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+    }
+
+    .sidebar {
+      width: 240px;
+      height: 100vh;
+      background-color: #2c3e50;
+      padding: 20px;
+      box-sizing: border-box;
+      color: #fff;
+    }
+
+    .sidebar h2 {
+      margin-bottom: 1rem;
+    }
+
+    .sidebar a {
+      display: block;
+      color: #ccc;
+      text-decoration: none;
+      margin-bottom: 12px;
+    }
+
+    .sidebar a:hover,
+    .sidebar .sidebar-button {
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .main-content {
+      flex-grow: 1;
+      padding: 20px;
+      background-color: #f5f5f5;
+      min-height: 100vh;
+    }
+
+    .form-container {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    .form-container h2 {
+      margin-top: 0;
+      display: inline-block;
+    }
+
+    .form-container form {
+      display: inline-block;
+      margin-left: 2rem;
+    }
+
+    .scrollable-table {
+      max-height: 500px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      margin-top: 1rem;
+    }
+
+    .scrollable-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .scrollable-table th,
+    .scrollable-table td {
+      padding: 10px 12px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    .scrollable-table thead th {
+      background: #2c3e50;
+      color: white;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .scrollable-table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    button {
+      padding: 6px 12px;
+      background: #2c3e50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2>ChronoLog</h2> <br>
+    <a href="{% url 'employee-dashboard' %}">Profile</a>
+    <a href="{% url 'submit_request' %}">Request</a>
+    {% if user.is_staff %}
+    <a href="{% url 'review_requests' %}">Review Requests</a>
+    {% endif %}
+    <a href="{% url 'attendance_history' %}" class="sidebar-button">History</a>
+    <a href="{% url 'logout' %}">Logout</a>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="form-container">
+      <h2>Attendance History</h2>
+
+      <form method="get">
+        <label for="date">Date:</label>
+        <input type="date" id="date" name="date" value="{{ selected_date }}">
+        <label for="month">Month:</label>
+        <input type="month" id="month" name="month" value="{{ selected_month }}">
+        <label for="year">Year:</label>
+        <input type="number" id="year" name="year" value="{{ selected_year }}" min="2000" max="2100" style="width: 80px;">
+        <button type="submit">Filter</button>
+
+        {% if selected_date or selected_month or selected_year %}
+          <a href="{% url 'attendance_history' %}" style="margin-left: 10px;">Clear</a>
+        {% endif %}
+      </form>
+
+      {% if selected_date %}
+        <p><strong>Viewing logs for:</strong> {{ selected_date }}</p>
+      {% elif selected_month %}
+        <p><strong>Viewing logs for:</strong> {{ selected_month }}</p>
+      {% elif selected_year %}
+        <p><strong>Viewing logs for:</strong> {{ selected_year }}</p>
+      {% endif %}
+
+      <div class="scrollable-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Time In</th>
+              <th>Time Out</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in attendance_logs %}
+            <tr>
+              <td>{{ log.date }}</td>
+              <td>{{ log.status }}</td>
+              <td>{{ log.time_in }}</td>
+              <td>{{ log.time_out }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">No records found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

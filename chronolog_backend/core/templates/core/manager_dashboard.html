@@ -1,0 +1,364 @@
+{% load dict_extras %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ChronoLog Dashboard</title>
+    <style>
+        body {
+            display: flex;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        button[disabled] {
+            background: #ccc;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        .sidebar {
+            width: 200px;
+            background: #2c3e50;
+            color: white;
+            height: 100vh;
+            padding: 20px;
+            margin-right: 10px;
+        }
+        .sidebar h2 {
+            margin-bottom: 20px;
+        }
+        .sidebar a {
+            display: block;
+            color: white;
+            text-decoration: none;
+            margin: 10px 0;
+        }
+        .sidebar a:hover {
+            text-decoration: underline;
+        }
+        .content {
+            flex-grow: 1;
+            padding: 30px;
+        }
+        .profile {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            width: 210px;
+            padding-right: 20px;
+            padding-left: 10px;
+        }
+        .profile img {
+            width: 120px;
+            height: 120px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .status-label {
+            padding: 5px 10px;
+            border-radius: 6px;
+            color: white;
+            font-size: 0.85rem;
+        }
+
+        .on_time { background: green; }
+        .late { background: red; }
+        .overtime { background: blue; }
+        .on_leave { background: orange; }
+        .no-record { background: gray; }
+
+        #calendar-container {
+            margin-top: 30px;
+            background: #f9f9f9;
+            padding: 50px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            align-self: center;
+        }
+
+        #calendar-month {
+            text-align: center;
+            font-size: 1.25rem;
+            margin-bottom: 20px;
+        }
+
+        #calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            max-width: 800px;
+            margin: auto;
+            text-align: center;
+        }
+
+        .calendar-cell {
+            position: relative;
+            padding: 10px 0;
+            border-radius: 6px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            height: 50px;
+            width: 100px;
+            cursor: default;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .calendar-cell:hover {
+            background: #e0e7ff;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .calendar-dot {
+            position: absolute;
+            bottom: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .highlight-today {
+            background: #dbeafe !important;
+            border: 2px solid #3b82f6;
+        }
+
+        .time-btn-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .time-btn-container form {
+            display: inline-block;
+        }
+
+        .time-btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            min-width: 80px;
+        }
+
+        .time-in-btn {
+            background-color: green;
+        }
+
+        .time-out-btn {
+            background-color: red;
+        }
+
+        /* Legend styles */
+        .calendar-legend {
+            margin-top: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 10px 15px;
+            background: #eef2f7;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+        }
+
+        .legend-green { background: green; }
+        .legend-red { background: red; }
+        .legend-blue { background: blue; }
+        .legend-orange { background: orange; }
+        .legend-gray { background: gray; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>ChronoLog</h2><br>
+        <a href="{% url 'manager_dashboard' %}">Profile</a>
+        <a href="{% url 'submit_request' %}">Request</a>
+        <a href="{% url 'review_requests' %}">Review Requests</a>
+        <a href="{% url 'attendance_history' %}" class="sidebar-button">History</a>
+        <a href="{% url 'logout' %}">Logout</a>
+    </div>
+
+
+    <div class="profile">
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <h2>{{ profile.user.first_name }} {{ profile.user.last_name }}</h2>
+            <p><strong>Position:</strong> {{ profile.position }}</p>
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem;">
+                <p><strong>Schedule:</strong> {{ profile.schedule_start }} - {{ profile.schedule_end }}</p>
+
+                <form id="attendance-form" method="post" action="{% url 'toggle_attendance' %}">
+                    {% csrf_token %}
+                    {% if is_timed_in %}
+                        <button type="submit" class="time-btn time-out-btn">Time Out</button>
+                    {% else %}
+                        <button type="submit" class="time-btn time-in-btn">Time In</button>
+                    {% endif %}
+                </form>
+            </div>
+
+        </div>
+    </div>
+    
+
+        <!-- Calendar Section -->
+        <div id="calendar-container">
+            <h2 id="calendar-month"></h2>
+            <div id="calendar-grid"></div>
+
+            <!-- Legend Below Calendar -->
+            <div class="calendar-legend">
+                <div class="legend-item"><span class="legend-color legend-green"></span> On Time</div>
+                <div class="legend-item"><span class="legend-color legend-red"></span> Late</div>
+                <div class="legend-item"><span class="legend-color legend-blue"></span> Overtime</div>
+                <div class="legend-item"><span class="legend-color legend-orange"></span> On Leave</div>
+                <div class="legend-item"><span class="legend-color legend-gray"></span> No Record</div>
+            </div>
+        </div>
+
+<script id="attendance-data" type="application/json">
+    {{ attendance_data_json|safe }}
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+   
+    // 🟢 Make calendar cells clickable to view filtered history
+    document.querySelectorAll(".calendar-cell").forEach(cell => {
+        cell.addEventListener("click", () => {
+            const selectedDate = cell.getAttribute("data-date");
+            if (selectedDate) {
+                window.location.href = `/history/?date=${selectedDate}`;
+            }
+        });
+    });
+
+        // === 📅 Render Calendar ===
+        const attendanceByDate = JSON.parse(document.getElementById("attendance-data").textContent);
+        const grid = document.getElementById('calendar-grid');
+        const monthLabel = document.getElementById('calendar-month');
+
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth();
+        const startDate = new Date(year, month, 1);
+        const endDate = new Date(year, month + 1, 0);
+        const daysInMonth = endDate.getDate();
+        const startDay = startDate.getDay();
+
+        const monthNames = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        monthLabel.textContent = `${monthNames[month]} ${year}`;
+
+        for (let i = 0; i < startDay; i++) {
+            grid.insertAdjacentHTML('beforeend', `<div></div>`);
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const status = attendanceByDate[dateStr];
+            let dotColor = getStatusColor(status);
+
+            const isToday = (day === today.getDate());
+
+        grid.insertAdjacentHTML('beforeend', `
+            <a href="/history/?date=${dateStr}" class="calendar-cell ${isToday ? 'highlight-today' : ''}">
+                ${day}
+                <span class="calendar-dot" style="background:${dotColor}"></span>
+            </a>
+        `);
+
+
+        }
+
+        // === ⏱️ Time-In/Out Button ===
+        const form = document.getElementById("attendance-form");
+        if (form) {
+            const button = form.querySelector("button");
+
+            form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                button.disabled = true;
+                button.innerText = "Processing...";
+
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": csrfToken
+                        }
+                        // No body needed
+                    });
+
+                    if (!response.ok) throw new Error("Network error");
+
+                    const data = await response.json();
+                    console.log("✅ Server response:", data);
+
+                    // 🔁 Update button label and state
+                    if (data.label === "Time Out") {
+                        button.innerText = "Time Out";
+                        button.classList.remove("time-in-btn");
+                        button.classList.add("time-out-btn");
+                        button.disabled = false;
+                    } else if (data.label === "Done") {
+                        button.innerText = "Done";
+                        button.classList.add("done-btn");
+                        button.disabled = true;
+                    } else {
+                        button.innerText = data.label || "Error";
+                        button.disabled = false;
+                    }
+
+                    // 🔁 Update today's dot color in calendar
+                    const dot = document.querySelector(".highlight-today .calendar-dot");
+                    if (dot) {
+                        dot.style.background = getStatusColor(data.status);
+                    }
+
+                } catch (error) {
+                    console.error("❌ Attendance error:", error);
+                    button.innerText = "Try Again";
+                    button.disabled = false;
+                }
+            });
+        }
+
+        // ✅ Utility
+        function getStatusColor(status) {
+            switch (status) {
+                case "on_time": return "green";
+                case "late": return "red";
+                case "on_leave": return "orange";
+                case "overtime": return "blue";
+                default: return "gray";
+            }
+        }
+    });
+</script>
+
+
+
+</body>
+</html>
